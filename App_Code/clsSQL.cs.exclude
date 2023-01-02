@@ -1,0 +1,693 @@
+﻿
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Data.SqlClient;
+
+
+
+public class ClsSql
+{
+
+    #region "Public Variables"
+    public static SqlConnection cn = new SqlConnection();
+    public static SqlTransaction tr;
+    public static bool bTran;
+    #endregion
+    public static string strUserName = "";
+    #region "Public Methods"
+    public static SqlDataAdapter da;
+
+    #region "Public Function"
+
+
+
+
+    public SqlDataReader ExecuteSpReader(string strSPName, object[] arr)
+    {
+        SqlDataReader datareader = null;
+
+        try
+        {
+            //log the sp called
+            Global_Methods.LogMessage("ExecuteSpReader", "0" , "ExecuteSpReader_Start", "Info");
+
+            //open the connection
+            OpenConnection();
+            //to store the data set
+            //Dim ds As New DataSet
+            //sql data adapter
+            //Dim da As SqlDataAdapter
+            SqlCommand dbcmd = new SqlCommand();
+            //open the data adapter object from the sp
+            // da = New SqlDataAdapter(strSPName, cn)
+            //set the command type to stored proc
+            dbcmd.Connection = cn;
+            dbcmd.CommandText = strSPName;
+            dbcmd.CommandType = CommandType.StoredProcedure;
+            //set the timeout to 900 secs (15 mins)
+            dbcmd.CommandTimeout =Convert.ToInt32(ClsCommon.lngCmdTimeout);
+            //if transaction is active, set the transaction to the DataAdapter
+            //If bTran = True Then da.SelectCommand.Transaction = tr
+            //to store the sp params
+            string strSPParams = null;
+
+            //retrieve the sp details
+
+            if ((arr != null))
+            {
+                //to store the parameter no.
+                int nParam = 0;
+                //initialize the param to 0
+                nParam = 0;
+                //loop through all the details of sp params
+                foreach (string strSPParams_loopVariable in arr)
+                {
+                    strSPParams = strSPParams_loopVariable;
+                    //if the param contains the blank or null, set it to nothing
+                    if (string.IsNullOrEmpty(arr[nParam].ToString()) | Information.IsDBNull(arr[nParam]))
+                    {
+                        arr[nParam] = null;
+                    }
+
+                    //if the parameter is not specified
+                    if (arr[nParam] == null)
+                    {
+                        //add the parameter to the proc
+                        dbcmd.Parameters.Add(DBNull.Value);
+                        //if the parameter is specified
+                    }
+                    else
+                    {
+                        //add the parameter to the proc
+                        dbcmd.Parameters.Add(arr[nParam]);
+                    }
+
+                    //add the param
+                    //enclose the string and date param to quotes
+
+                    strSPParams += (arr[nParam] == null ? "NULL" : arr[nParam]) + ",";
+
+                    //increment the param
+                    nParam += 1;
+                }
+            }
+
+            //log the sp called
+            Global_Methods.LogMessage("ExecuteSpReader Executed ", "0", "ExecuteSpReader", "Info");
+
+            //execute the sql and get the data set
+            datareader = dbcmd.ExecuteReader(CommandBehavior.CloseConnection);
+
+            //return the data reader
+            return datareader;
+
+
+        }
+        catch (Exception ex)
+        {
+            Global_Methods.LogMessage("ExecuteSpReader", "0", "Error" + ex.Message, "Info");
+            return datareader;
+        }
+
+    }
+    //Name:
+    //	ExecuteSQL
+    //Parameters:
+    //	1) SQL String
+    //Details:
+    //	This function will execute the sql string and return the DataSet
+    public static DataSet ExecuteSQL(string strSQL)
+    {
+        //log the sql called
+        Global_Methods.LogMessage("clsSQL.ExecuteSQL", "ExecuteSQL Start", "", "Info");
+
+        //if sql string is not specified, raise the error
+        if (strSQL.Length == 0)
+            throw new Exception("Invalid SQL String");
+        //open the connection
+        OpenConnection();
+        //to store the data set
+        DataSet ds = new DataSet();
+        //sql data adapter
+        SqlDataAdapter da = default(SqlDataAdapter);
+        //open the data adapter object from the sql
+        da = new SqlDataAdapter(strSQL, cn);
+
+        //if transaction is active, set the transaction to the DataAdapter
+        if (bTran == true)
+            da.SelectCommand.Transaction = tr;
+
+        //log the sql called
+        Global_Methods.LogMessage("clsSQL.ExecuteSQL", strSQL, "", "Info");
+
+        //execute the sql and get the data set
+        da.Fill(ds);
+
+        //log the sql over
+        Global_Methods.LogMessage("clsSQL.ExecuteSQL", "ExecuteSQL over", "", "Info");
+
+        //log the sql output
+        //clsLog.LogMessage("clsSQL.ExecuteSQL", _
+        //	GetTextFromDS(ds), clsLog.ltSQLOutput)
+        //CloseConnection() ' Commneted By Sachin P on 11 Apr 08
+        //return the data set
+        da.Dispose();
+        da = null;
+        return (ds);
+    }
+
+    public static int ExecuteNonQuery(string strSPName, object[] arrParam, object[] arrValues)
+    {
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_Start", "Info");
+        //open the connection
+        OpenConnection();
+        //sql data adapter
+        SqlCommand cmd = default(SqlCommand);
+
+        cmd = new SqlCommand(strSPName, cn);
+        //set the command type to stored proc
+        cmd.CommandType = CommandType.StoredProcedure;
+
+        //set the timeout to 900 secs (15 mins)
+        cmd.CommandTimeout =Convert.ToInt32(ClsCommon.lngCmdTimeout);
+        //cmd.Connection.ConnectionString = ClsCommon.strDBConn
+
+        //to store the sp params
+        string strSPParams = null;
+        strSPParams = "";
+
+        cmd.Parameters.Clear();
+        //Dim sqlP As SqlParameter
+        if ((arrValues != null))
+        {
+            //to store the parameter no.
+            int nParam = 0;
+            //initialize the param to 0
+            nParam = 0;
+            //loop through all the details of sp params
+            foreach (string strSPParams_loopVariable in arrValues)
+            {
+                strSPParams = strSPParams_loopVariable;
+                //if the param contains the blank or null, set it to nothing
+                // If arrValues(nParam) = "" Or IsDBNull(arrValues(nParam)) Then
+                //arrValues(nParam) = Nothing
+                // End If
+                //if the parameter is not specified
+                if (arrValues[nParam] == null)
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), DBNull.Value);
+                    //if the parameter is specified
+                }
+                else
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), arrValues[nParam]);
+                }
+
+                //add the param
+                //strSPParams = strSPParams + IIf(arrValues(nParam) Is Nothing, "NULL", arrValues(nParam)) & ","
+                strSPParams += (arrValues[nParam] == null ? "NULL" : arrValues[nParam]) + ",";
+
+                //increment the param
+                nParam += 1;
+
+            }
+        }
+
+        int iRet = cmd.ExecuteNonQuery();
+        Global_Methods.LogMessage("ExecuteSP", "0", strSPName + " " + strSPParams, "Info");
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_End", "Info");
+        return iRet;
+    }
+    public static bool CTLValidation(string strSPName, object[] arrParam, object[] arrValues)
+    {
+        if (GetDataset(strSPName, arrParam, arrValues).Tables[0].Rows.Count > 0)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+    // Added By Sandeep maher on 13 Nov 08 for Getting Message from SPs in Dataset.
+    public static DataSet GetDataset(string strSPName, object[] arrParam, object[] arrValues)
+    {
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_Start", "Info");
+
+        //open the connection
+
+        OpenConnection();
+        //to store the data set
+        DataSet ds = new DataSet();
+        //sql data adapter
+
+        SqlCommand cmd = default(SqlCommand);
+
+        cmd = new SqlCommand(strSPName, cn);
+        //set the command type to stored proc
+        cmd.CommandType = CommandType.StoredProcedure;
+
+        //set the timeout to 900 secs (15 mins)
+        cmd.CommandTimeout =Convert.ToInt32(ClsCommon.lngCmdTimeout);
+        //cmd.Connection.ConnectionString = ClsCommon.strDBConn
+
+        //to store the sp params
+        string strSPParams = null;
+        strSPParams = "";
+
+        cmd.Parameters.Clear();
+        //Dim sqlP As SqlParameter
+
+        if ((arrValues != null))
+        {
+
+            //to store the parameter no.
+            int nParam = 0;
+            //initialize the param to 0
+            nParam = 0;
+            //loop through all the details of sp params
+
+            foreach (string strSPParams_loopVariable in arrValues)
+            {
+                strSPParams = strSPParams_loopVariable;
+                //if the param contains the blank or null, set it to nothing
+                // If arrValues(nParam) = "" Or IsDBNull(arrValues(nParam)) Then
+                //arrValues(nParam) = Nothing
+                // End If
+
+                //if the parameter is not specified
+                if (arrValues[nParam] == null)
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), DBNull.Value);
+                    //if the parameter is specified
+                }
+                else
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), arrValues[nParam]);
+                }
+
+                //add the param
+
+                //strSPParams = strSPParams + IIf(arrValues(nParam) Is Nothing, "NULL", arrValues(nParam)) & ","
+                strSPParams += (arrValues[nParam] == null ? "NULL" : arrValues[nParam]) + ",";
+
+                //increment the param
+                nParam += 1;
+
+            }
+        }
+
+        da = new SqlDataAdapter(cmd);
+        ds = new DataSet();
+        da.Fill(ds);
+
+        Global_Methods.LogMessage("ExecuteSP", "0", strSPName + " " + strSPParams, "Info");
+
+        da.Dispose();
+        da = null;
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_End", "Info");
+
+        return (ds);
+
+    }
+    // Added By Sandeep maher on 05 Nov 09 
+    public static SqlDataReader GetDataReader(string strSPName, object[] arrParam, object[] arrValues)
+    {
+        SqlDataReader datareader = null;
+
+        try
+        {
+            //log the sp called
+            Global_Methods.LogMessage("ExecuteSpReader", "0", "ExecuteSpReader_Start", "Info");
+
+            //open the connection
+            OpenConnection();
+            //to store the data set
+            //Dim ds As New DataSet
+            //sql data adapter
+            //Dim da As SqlDataAdapter
+            SqlCommand cmd = new SqlCommand();
+            //open the data adapter object from the sp
+            // da = New SqlDataAdapter(strSPName, cn)
+            //set the command type to stored proc
+            cmd.Connection = cn;
+            cmd.CommandText = strSPName;
+            cmd.CommandType = CommandType.StoredProcedure;
+            //set the timeout to 900 secs (15 mins)
+            cmd.CommandTimeout =Convert.ToInt32(ClsCommon.lngCmdTimeout);
+            //if transaction is active, set the transaction to the DataAdapter
+            //If bTran = True Then da.SelectCommand.Transaction = tr
+            //to store the sp params
+            string strSPParams = null;
+
+            //retrieve the sp details
+
+
+            if ((arrValues != null))
+            {
+
+                //to store the parameter no.
+                int nParam = 0;
+                //initialize the param to 0
+                nParam = 0;
+                //loop through all the details of sp params
+
+                foreach (string strSPParams_loopVariable in arrValues)
+                {
+                    strSPParams = strSPParams_loopVariable;
+                    //if the param contains the blank or null, set it to nothing
+                    // If arrValues(nParam) = "" Or IsDBNull(arrValues(nParam)) Then
+                    //arrValues(nParam) = Nothing
+                    // End If
+
+                    //if the parameter is not specified
+                    if (arrValues[nParam] == null)
+                    {
+                        //add the parameter to the proc
+                        cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), DBNull.Value);
+                        //if the parameter is specified
+                    }
+                    else
+                    {
+                        //add the parameter to the proc
+                        cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), arrValues[nParam]);
+                    }
+
+                    //add the param
+
+                    //strSPParams = strSPParams + IIf(arrValues(nParam) Is Nothing, "NULL", arrValues(nParam)) & ","
+                    strSPParams += (arrValues[nParam] == null ? "NULL" : arrValues[nParam]) + ",";
+
+                    //increment the param
+                    nParam += 1;
+
+                }
+            }
+
+            //log the sp called
+            Global_Methods.LogMessage("ExecuteSpReader Executed ", "0", "ExecuteSpReader", "Info");
+
+            //execute the sql and get the data set
+            datareader = cmd.ExecuteReader(CommandBehavior.CloseConnection);
+
+            //return the data reader
+            return datareader;
+
+
+        }
+        catch (Exception ex)
+        {
+            Global_Methods.LogMessage("ExecuteSpReader", "0", "Error" + ex.Message, "Info");
+            return datareader;
+        }
+
+    }
+
+    public DataSet ExecuteSP(string strSPName, object[] arrParam, object[] arrValues)
+    {
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_Start", "Info");
+
+        //open the connection
+
+        OpenConnection();
+        //to store the data set
+        DataSet ds = new DataSet();
+        //sql data adapter
+
+        SqlCommand cmd = default(SqlCommand);
+
+        cmd = new SqlCommand(strSPName, cn);
+        //set the command type to stored proc
+        cmd.CommandType = CommandType.StoredProcedure;
+
+        //set the timeout to 900 secs (15 mins)
+        cmd.CommandTimeout =Convert.ToInt32(ClsCommon.lngCmdTimeout);
+        //cmd.Connection.ConnectionString = ClsCommon.strDBConn
+
+        //to store the sp params
+        string strSPParams = null;
+        strSPParams = "";
+
+        cmd.Parameters.Clear();
+        //Dim sqlP As SqlParameter
+
+        if ((arrValues != null))
+        {
+
+            //to store the parameter no.
+            int nParam = 0;
+            //initialize the param to 0
+            nParam = 0;
+            //loop through all the details of sp params
+
+            foreach (string strSPParams_loopVariable in arrValues)
+            {
+                strSPParams = strSPParams_loopVariable;
+                //if the param contains the blank or null, set it to nothing
+                // If arrValues(nParam) = "" Or IsDBNull(arrValues(nParam)) Then
+                //arrValues(nParam) = Nothing
+                // End If
+
+                //if the parameter is not specified
+                if (arrValues[nParam] == null)
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), DBNull.Value);
+                    //if the parameter is specified
+                }
+                else
+                {
+                    //add the parameter to the proc
+                    cmd.Parameters.AddWithValue(arrParam[nParam].ToString(), arrValues[nParam]);
+                }
+
+                //add the param
+
+                //strSPParams = strSPParams + IIf(arrValues(nParam) Is Nothing, "NULL", arrValues(nParam)) & ","
+                strSPParams += (arrValues[nParam] == null ? "NULL" : arrValues[nParam]) + ",";
+
+                //increment the param
+                nParam += 1;
+
+            }
+        }
+
+        da = new SqlDataAdapter(cmd);
+        ds = new DataSet();
+        da.Fill(ds);
+
+        Global_Methods.LogMessage("ExecuteSP", "0", strSPName + " " + strSPParams, "Info");
+        CloseConnection();
+        da.Dispose();
+        da = null;
+
+        Global_Methods.LogMessage("ExecuteSP", "0", "ExecuteSP_End", "Info");
+
+        return (ds);
+
+    }
+
+
+    public static void OpenConnection()
+    {
+        try
+        {
+            //log the OpenConnection called
+            //if the connection is closed or broken
+            if (cn.State == ConnectionState.Closed | cn.State == ConnectionState.Broken)
+            {
+                Global_Methods.LogMessage("OpenConnection", "0", "OpenConnection_Start", "Info");
+                //set the connection string
+                cn.ConnectionString = ClsCommon.strDBConn;
+                //open the connection
+                cn.Open();
+                //reset the tran flag
+                Global_Methods.LogMessage("OpenConnection", "0", "OpenConnection_End", "Info");
+            }
+        }
+        catch (Exception ex)
+        {
+            Global_Methods.LogMessage("OpenConnection", "0", ex.Message, "Info");
+        }
+    }
+    public void BeginTran()
+    {
+        //open the connection
+        OpenConnection();
+        if (bTran == false)
+            tr = cn.BeginTransaction();
+        //set the tran variable
+        bTran = true;
+    }
+    public void CommitTran()
+    {
+        //open the connection
+        OpenConnection();
+        if (bTran == true)
+            tr.Commit();
+        //reset the tran variable
+        bTran = false;
+    }
+    public void RollBackTran()
+    {
+        //open the connection
+        OpenConnection();
+        if (bTran == true)
+            tr.Rollback();
+        //reset the tran variable
+        bTran = false;
+    }
+
+
+    public void CloseConnection()
+    {
+        //if the connection is closed or broken
+        if (cn.State == ConnectionState.Open)
+        {
+            Global_Methods.LogMessage("CloseConnection", "0", "CloseConnection", "Info");
+            cn.Close();
+        }
+    }
+
+
+
+    //Public Shared Function FinalDateFormat(ByVal DateVariable As String) As String
+
+
+    //    Dim strFinalDate As String
+
+    //    Global_Methods.LogMessage("FinalDateFormat_Start", 0, DateVariable, "Info")
+
+    //    Dim dateFormat As New System.Globalization.CultureInfo("en-GB", True)
+
+    //    Dim dt As DateTime
+    //    dt = DateTime.Parse(DateVariable, dateFormat)
+    //    Global_Methods.LogMessage("FinalDateFormat_Parse", 0, dt, "Info")
+    //    strFinalDate = Format(dt, "yyyy-MM-dd")
+    //    Global_Methods.LogMessage("FinalDateFormat_FinalDate", 0, strFinalDate, "Info")
+
+    //    'strFinalDate = Format(CDate(DateVariable), "yyyy-MM-dd")
+    //    Global_Methods.LogMessage("FinalDateFormat_End", 0, strFinalDate, "Info")
+
+    //    If strFinalDate = String.Empty Then
+    //        Return Nothing
+    //    Else
+    //        Return strFinalDate
+    //    End If
+
+
+    //End Function
+    public static string FinalDateFormat(string DateVariable)
+    {
+        if (DateVariable == null)
+        {
+            return null;
+        }
+        string strFinalDate = null;
+        dynamic dateformat = new System.Globalization.CultureInfo("en-GB", true);
+
+        DateTime dt = default(DateTime);
+        dt = DateTime.Parse(DateVariable, dateformat);
+        strFinalDate = dt.ToString("yyyy-MM-dd");
+        if (strFinalDate == null)
+        {
+            return null;
+        }
+        else
+        {
+            return strFinalDate;
+        }
+    }
+
+    #endregion
+
+    #region "Public Procedures"
+
+    public static void GetConfigSettings()
+    {
+        try
+        {
+            //'read the config settings
+            //'data source
+
+            //'Added By Ravi for Decrypting the Database details 
+            //Dim ObjCrypt As New weCrypt.EncryptDecrypt
+
+            //ObjCrypt.SetKey("YesBank")
+
+            //Global_Methods.LogMessage("GetConfigSettings", 0, "GetConfigSettings_Start", "Info")
+
+            //'For AD
+            //ClsCommon.strDataSource = ObjCrypt.DecodeString(ConfigurationManager.AppSettings.Get("DataSource"))
+            //'For plain
+            //'ClsCommon.strDataSource = ConfigurationManager.AppSettings.Get("DataSource")
+            //'if the data source is null
+            //If (ClsCommon.strDataSource = "") Then
+            //    'raise the error as unable to read config file
+            //    Throw New ApplicationException("The Data Source Setting is missing from the config file")
+            //End If
+
+            //'database
+            //'ClsCommon.strDatabase = ConfigurationManager.AppSettings.Get("DataBase")
+            //ClsCommon.strDatabase = ObjCrypt.DecodeString(ConfigurationManager.AppSettings.Get("DataBase"))
+            //'if the database is null
+            //If (ClsCommon.strDatabase = "") Then
+            //    'raise the error as unable to read config file
+            //    Throw New ApplicationException("The DataBase Setting is missing from the config file")
+            //End If
+
+            //'user id
+            //'ClsCommon.strDBUserID = ConfigurationManager.AppSettings.Get("UserID")
+            //ClsCommon.strDBUserID = ObjCrypt.DecodeString(ConfigurationManager.AppSettings.Get("UserID"))
+            //'if the user id is null
+            //If (ClsCommon.strDBUserID = "") Then
+            //    'raise the error as unable to read config file
+            //    Throw New ApplicationException("The User ID Setting is missing from the config file")
+            //End If
+
+            //'pwd
+            //'ClsCommon.strDBPwd = ConfigurationManager.AppSettings.Get("Password")
+            //ClsCommon.strDBPwd = ObjCrypt.DecodeString(ConfigurationManager.AppSettings.Get("Password"))
+            //'command time out
+            //ClsCommon.lngCmdTimeout = ConfigurationManager.AppSettings.Get("CommandTimeout")
+
+
+            //'form and store the db connection setting
+            //ClsCommon.strDBConn = "Server=" & ClsCommon.strDataSource & _
+            //";DataBase=" & ClsCommon.strDatabase & ";Uid=" & ClsCommon.strDBUserID & _
+            //";Pwd=" & ClsCommon.strDBPwd & ";Connect Timeout=" & ClsCommon.lngCmdTimeout & " ;Pooling=True;Max Pool Size=200"
+            //'clsCommon.OpnCon = True
+
+            //'set url 
+            //Global_Methods.LogMessage("GetConfigSettings", 0, ClsCommon.strDBConn, "Info")
+            //'
+            //'ObjCrypt = Nothing
+            //Global_Methods.LogMessage("GetConfigSettings", 0, "GetConfigSettings_End", "Info")
+            //'MFDB
+            //ClsCommon.sMFDB = ConfigurationManager.AppSettings.Get("MFDB")
+            //' Start Srinivas 17 Jan 2011 added a new property for storing the value of userid retrieved in querystring.
+            //ClsCommon.StrUserName = strUserName.ToString
+            //' End Srinivas 17 Jan 2011 added a new property for storing the value of userid retrieved in querystring.
+
+        }
+        catch (Exception ex)
+        {
+            Global_Methods.LogMessage("GetConfigSettings", "0", ex.Message, "Error");
+        }
+    }
+    #endregion
+    #endregion
+}
+

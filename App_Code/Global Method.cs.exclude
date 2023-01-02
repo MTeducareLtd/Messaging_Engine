@@ -1,0 +1,180 @@
+﻿
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Web;
+using System.IO;
+using System.Globalization;
+
+
+public class Global_Methods
+{
+    public static void SetUserId(string strUser)
+    {
+        ClsCommon.StrUserName = strUser;
+    }
+    public bool IsLastDayOfMonth(string strDate)
+    {
+        System.DateTime ForMonth = default(System.DateTime);
+        // ForMonth = arrReconcileDataParams(0)
+        ForMonth = Strings.Format(Convert.ToDateTime(ClsSql.FinalDateFormat(strDate)), "yyyy-MM-dd");
+        if (ForMonth.Day != System.DateTime.DaysInMonth(ForMonth.Year, ForMonth.Month))
+        {
+            return false;
+        }
+        return true;
+    }
+    public static void ClearArrays(ref string[] aCol, ref string[] aCol1)
+    {
+        int i = 0;
+
+        for (i = 0; i <= 100; i++)
+        {
+            aCol[i] = "";
+        }
+
+        for (i = 0; i <= 100; i++)
+        {
+            aCol1[i] = "";
+        }
+
+    }
+    public static void checkLogin()
+    {
+        try
+        {
+            //HttpContext.Current.Session["Message"] = "Your login session has expired"
+            Global_Methods.LogMessage("checkLogin", "0", "checkLogin_Start", "Info");
+
+            if ((HttpContext.Current.Session["IsLogin"] != null))
+            {
+                if (!Convert.ToBoolean(HttpContext.Current.Session["IsLogin"]))
+                {
+                    SessionExpiration();
+                    HttpContext.Current.Session["Message"] = "Your login session has expired";
+                    HttpContext.Current.Response.Redirect("../Login.aspx");
+                }
+            }
+            else
+            {
+                SessionExpiration();
+                HttpContext.Current.Session["Message"] = "Your login session has expired";
+                HttpContext.Current.Response.Redirect("../Login.aspx");
+            }
+            Global_Methods.LogMessage("checkLogin", "0", "checkLogin_Start", "Info");
+
+        }
+        catch (Exception ex)
+        {
+            Global_Methods.LogMessage("checkLogin", "0", ex.Message, "Error");
+        }
+
+    }
+
+    //This procedure used for to set "Session Variable" Null 
+    public static void SessionExpiration()
+    {
+        HttpContext.Current.Session.RemoveAll();
+        HttpContext.Current.Session.Abandon();
+    }
+
+    public static void LogMessage(string strSource, string lngError, string strMsg, string lt)
+    {
+        try
+        {
+            //to store path of the log file
+            dynamic strFileName = null;
+            //store stream writer object
+            System.IO.StreamWriter sr = default(System.IO.StreamWriter);
+            //= System.IO.File.CreateText("strFileName")
+
+            dynamic strUserName = null;
+
+            if ((HttpContext.Current.Session["UserId"] != null))
+            {
+                if (HttpContext.Current.Session["UserId"] != string.Empty)
+                {
+                    strUserName = HttpContext.Current.Session["UserId"];
+                }
+                else
+                {
+                    strUserName = "Anonymous User";
+                }
+            }
+            else
+            {
+                strUserName = "Anonymous User";
+            }
+
+            //if the log folder does not exists in the application folder
+
+            if (!System.IO.Directory.Exists(GetAppPath() + "/Log"))
+            {
+                //create the log folder
+                System.IO.Directory.CreateDirectory(GetAppPath() + "/Log");
+            }
+
+            //generate the file name
+            strFileName = System.Web.HttpContext.Current.Server.MapPath("~/Logs") + "/Log/" + "Log_" + DateTime.Now.ToString("ddMMMyyyy") + ".log";
+            //dim sr As System.IO.StreamWriter = System.IO.File.CreateText(strFileName)
+            //create the stream writer object to create the log file in append mode
+            sr = new StreamWriter(strFileName, true, System.Text.Encoding.Default, FileShare.ReadWrite);
+            //write to the stream writer
+            sr.WriteLine("[" + strUserName + "][" + DateTime.Now.ToString("HH:mm:ss") + "][" + lt.PadRight(10, Convert.ToChar(" ")) + "][" + strSource.PadRight(35, Convert.ToChar(" ")) + "] " + strMsg);
+            //flush the stream writer
+            sr.Flush();
+            //close the stream writer
+            sr.Close();
+        }
+        catch (Exception ex)
+        {
+            //MsgBox("Exception in Log Message " & ex.ToString, MsgBoxStyle.Critical)
+        }
+
+    }
+    public static string GetAppPath()
+    {
+
+        //to store the application path
+
+        string strAppPath = null;
+
+
+
+        //to store the path separator
+
+        int nPathSep = 0;
+
+        //retrieve the exe path
+
+        //'strAppPath = System.AppDomain.CurrentDomain.BaseDirectory 'Application.ExecutablePath
+        strAppPath = ConfigurationManager.AppSettings().Get("logfilePath");
+
+        //retrieve the last index of "\"
+
+        nPathSep = strAppPath.LastIndexOf("/");
+
+        //remove the exe name from the path
+
+        //strAppPath = strAppPath.Remove(nPathSep, (strAppPath.Length - nPathSep))
+
+        //nPathSep = strAppPath.LastIndexOf("\")
+
+        //'remove \bin from the path
+
+        //strAppPath = strAppPath.Remove(nPathSep, (strAppPath.Length - nPathSep))
+
+        //return the app path
+
+        return (strAppPath);
+
+    }
+
+
+
+
+}
+
